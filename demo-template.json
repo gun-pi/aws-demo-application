@@ -1,0 +1,473 @@
+{
+  "Outputs": {
+    "DatabaseProperties": {
+      "Value": {
+        "Fn::Join": [
+          " ; ",
+          [
+            {
+              "Ref": "RDSDatabase"
+            },
+            {
+              "Fn::GetAtt": [
+                "RDSDatabase",
+                "Endpoint.Address"
+              ]
+            },
+            {
+              "Fn::GetAtt": [
+                "RDSDatabase",
+                "Endpoint.Port"
+              ]
+            },
+            {
+              "Ref": "EC2Instance"
+            }
+          ]
+        ]
+      },
+      "Description": "Properties associated with the RDS database instance"
+    }
+  },
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "Database Configuration"
+          },
+          "Parameters": [
+            "DatabaseName",
+            "DatabaseUserName",
+            "DatabasePassword",
+            "PubliclyVisible"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Network Configuration"
+          },
+          "Parameters": [
+            "VPC",
+            "AvailabilityZone"
+          ]
+        },
+        {
+          "Label": {
+            "default": "EC2 Configuration"
+          },
+          "Parameters": [
+            "KeyName"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Amazon MQ Configuration"
+          },
+          "Parameters": [
+            "AmazonMqUsername",
+            "AmazonMqPassword",
+            "BucketName",
+            "Destination"
+          ]
+        }
+      ],
+      "ParameterLabels": {
+        "AvailabilityZone": {
+          "default": "Availability Zone"
+        },
+        "DatabasePassword": {
+          "default": "Database Password"
+        },
+        "DatabaseName": {
+          "default": "Database Name"
+        },
+        "DatabaseUserName": {
+          "default": "Database User Name"
+        },
+        "PubliclyVisible": {
+          "default": "Publicly Visible"
+        },
+        "KeyName": {
+          "default": "Key Name"
+        },
+        "AmazonMqUsername": {
+          "default": "Amazon Mq Username"
+        },
+        "AmazonMqPassword": {
+          "default": "Amazon Mq Password"
+        },
+        "BucketName": {
+          "default": "Bucket Name"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "VPC": {
+      "Description": "Select VPC.",
+      "Type": "AWS::EC2::VPC::Id"
+    },
+    "AvailabilityZone": {
+      "Description": "Select Availability Zone",
+      "Type": "AWS::EC2::AvailabilityZone::Name"
+    },
+    "DatabasePassword": {
+      "NoEcho": "true",
+      "ConstraintDescription": "must contain only alphanumeric characters",
+      "Type": "String",
+      "Description": "The master password for the DB instance.",
+      "Default": "exampleexample"
+    },
+    "DatabaseName": {
+      "ConstraintDescription": "must contain only alphanumeric characters",
+      "Type": "String",
+      "Description": "The DB Name of the RDS instance",
+      "Default": "demo"
+    },
+    "DatabaseUserName": {
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters",
+      "Type": "String",
+      "Description": "The name of master user for the client DB Instance.",
+      "Default": "postgres"
+    },
+    "PubliclyVisible": {
+      "ConstraintDescription": "true or false",
+      "Type": "String",
+      "Description": "Should database be publicly accessible",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Default": "false"
+    },
+    "KeyName": {
+      "Description": "EC2 Instance SSH Key",
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "AmazonMqUsername": {
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters",
+      "Type": "String",
+      "Description": "The name of master user for the Amazon MQ.",
+      "Default": "activemq"
+    },
+    "AmazonMqPassword": {
+      "NoEcho": "true",
+      "ConstraintDescription": "must contain only alphanumeric characters",
+      "Type": "String",
+      "Description": "The master password for the Amazon MQ.",
+      "Default": "exampleexample"
+    },
+    "BucketName": {
+      "ConstraintDescription": "must contain only alphanumeric characters",
+      "Type": "String",
+      "Description": "The Bucket Name for Active MQ storage",
+      "Default": "activemq-demo-bucket"
+    },
+    "Destination": {
+      "ConstraintDescription": "must contain only alphanumeric characters",
+      "Type": "String",
+      "Description": "The Queue Name for messages",
+      "Default": "files"
+    }
+  },
+  "Resources": {
+    "DBSecurityGroup": {
+      "Properties": {
+        "GroupDescription": "Enable database access to application",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 5432,
+            "ToPort": 5432,
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      },
+      "Type": "AWS::EC2::SecurityGroup"
+    },
+    "EC2SecurityGroup": {
+      "Properties": {
+        "GroupDescription": "Enable ssh access",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22,
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 81,
+            "ToPort": 81,
+            "CidrIp": "0.0.0.0/0"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 443,
+            "ToPort": 443,
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      },
+      "Type": "AWS::EC2::SecurityGroup"
+    },
+    "RDSDatabase": {
+      "Type": "AWS::RDS::DBInstance",
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone"
+        },
+        "MasterUserPassword": {
+          "Ref": "DatabasePassword"
+        },
+        "LicenseModel": "postgresql-license",
+        "DBInstanceClass": "db.t2.micro",
+        "VPCSecurityGroups": [
+          {
+            "Ref": "DBSecurityGroup"
+          }
+        ],
+        "MasterUsername": {
+          "Ref": "DatabaseUserName"
+        },
+        "DBName": {
+          "Ref": "DatabaseName"
+        },
+        "MultiAZ": false,
+        "Engine": "postgres",
+        "AllocatedStorage": 5,
+        "PubliclyAccessible": {
+          "Ref": "PubliclyVisible"
+        }
+      }
+    },
+    "EC2Instance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone"
+        },
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/xvdh",
+            "Ebs": {
+              "DeleteOnTermination": "true",
+              "VolumeSize": "2",
+              "VolumeType": "gp2"
+            }
+          }
+        ],
+        "ImageId": "ami-013fffc873b1eaa1c",
+        "InstanceType": "t2.micro",
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "IamInstanceProfile": {
+          "Ref": "EC2IamInstanceProfile"
+        },
+        "SecurityGroupIds": [
+          {
+            "Ref": "EC2SecurityGroup"
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/bash -xe\n",
+                "mkfs -t xfs /dev/xvdh\n",
+                "mkdir /data\n",
+                "mount /dev/xvdh /data\n",
+                "echo '/dev/xvdh  /data  xfs  defaults,nofail  0  2' >> /etc/fstab\n",
+                "chmod -R 0777 /data\n",
+                "yum update -y\n",
+                "yum install -y awslogs\n",
+                "sed -i 's/us-east-1/",
+                {
+                  "Ref": "AWS::Region"
+                },
+                "/g' /etc/awslogs/awscli.conf\n",
+                "sed -i 's+/var/log/messages+/home/ec2-user/logs/spring-boot-logging.log+g' /etc/awslogs/awslogs.conf\n",
+                "systemctl start awslogsd\n",
+                "systemctl enable awslogsd.service\n",
+                "aws s3 cp s3://springboot-demo-bucket/demo-0.0.1-SNAPSHOT.jar /home/ec2-user/demo-0.0.1-SNAPSHOT.jar\n",
+                "yum -y install java-11-amazon-corretto-headless\n",
+                "echo 'spring.datasource.url=jdbc:postgresql://",
+                {
+                  "Fn::GetAtt": [
+                    "RDSDatabase",
+                    "Endpoint.Address"
+                  ]
+                },
+                ":",
+                {
+                  "Fn::GetAtt": [
+                    "RDSDatabase",
+                    "Endpoint.Port"
+                  ]
+                },
+                "/postgres\n",
+                "spring.datasource.username=",
+                {
+                  "Ref": "DatabaseUserName"
+                },
+                "\n",
+                "spring.datasource.password=",
+                {
+                  "Ref": "DatabasePassword"
+                },
+                "\n\n",
+                "spring.activemq.broker-url=",
+                {
+                  "Fn::Select": [
+                    0,
+                    {
+                      "Fn::GetAtt": [
+                        "ActiveMqBroker",
+                        "OpenWireEndpoints"
+                      ]
+                    }
+                  ]
+                },
+                "\n",
+                "spring.activemq.user=",
+                {
+                  "Ref": "AmazonMqUsername"
+                },
+                "\n",
+                "spring.activemq.password=",
+                {
+                  "Ref": "AmazonMqPassword"
+                },
+                "\n",
+                "bucketname=",
+                {
+                  "Ref": "BucketName"
+                },
+                "\n",
+                "destination=",
+                {
+                  "Ref": "Destination"
+                },
+                "\n' >> /home/ec2-user/application.properties\n",
+                "sed -i 's+touch /var/lock/subsys/local+",
+                "java -jar /home/ec2-user/demo-0.0.1-SNAPSHOT.jar --spring.config.additional-location=/home/ec2-user/application.properties --logging.file.name=/home/ec2-user/logs/spring-boot-logging.log",
+                "+g' /etc/rc.d/rc.local\n",
+                "echo '\nexit 0\n' >> /etc/rc.d/rc.local\n",
+                "chmod +x /etc/rc.d/rc.local\n",
+                "systemctl start rc-local.service"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "EC2IamInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [
+          {
+            "Ref": "EC2IamRole"
+          }
+        ]
+      }
+    },
+    "EC2IamPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "EC2IamPolicy",
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "s3:Get*",
+                "s3:List*",
+                "s3:Put*"
+              ],
+              "Resource": [
+                "arn:aws:s3:::springboot-demo-bucket*",
+                "arn:aws:s3:::activemq-demo-bucket*"
+              ]
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "cloudformation:*",
+                "cloudwatch:*",
+                "autoscaling:*",
+                "logs:*",
+                "ssm:*",
+                "ec2:*",
+                "mq:*"
+              ],
+              "Resource": "*"
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "EC2IamRole"
+          }
+        ]
+      }
+    },
+    "EC2IamRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "ec2.amazonaws.com"
+                ]
+              },
+              "Action": [
+                "sts:AssumeRole"
+              ]
+            }
+          ]
+        },
+        "Path": "/"
+      }
+    },
+    "ActiveMqBroker": {
+      "Type": "AWS::AmazonMQ::Broker",
+      "Properties": {
+        "AutoMinorVersionUpgrade": "false",
+        "BrokerName": "ActiveMqBroker",
+        "DeploymentMode": "SINGLE_INSTANCE",
+        "EngineType": "ActiveMQ",
+        "EngineVersion": "5.15.0",
+        "HostInstanceType": "mq.t2.micro",
+        "PubliclyAccessible": "false",
+        "Users": [
+          {
+            "ConsoleAccess": "true",
+            "Password": {
+              "Ref": "AmazonMqPassword"
+            },
+            "Username": {
+              "Ref": "AmazonMqUsername"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Description": "Demo application template"
+}

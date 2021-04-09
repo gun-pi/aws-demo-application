@@ -1,9 +1,11 @@
-package com.example.demo.data.entities;
+package com.example.demo.db.entities;
 
 import com.example.demo.business.models.Document;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 @Entity
 @Table(name = "documents")
@@ -34,7 +36,7 @@ public class DocumentEntity {
         this.creator = document.getCreator();
         this.content = document.getContent();
         this.file = document.getFile();
-        this.publishedOn = LocalDateTime.now();
+        this.publishedOn = ZonedDateTime.now(ZoneId.of("Europe/Moscow")).toLocalDateTime();
     }
 
     public DocumentEntity mergeDocuments(final Document document) {

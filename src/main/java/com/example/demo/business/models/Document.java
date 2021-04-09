@@ -1,6 +1,6 @@
 package com.example.demo.business.models;
 
-import com.example.demo.data.entities.DocumentEntity;
+import com.example.demo.db.entities.DocumentEntity;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;

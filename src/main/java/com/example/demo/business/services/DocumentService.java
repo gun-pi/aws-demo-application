@@ -1,16 +1,13 @@
 package com.example.demo.business.services;
 
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.example.demo.business.exceptions.DocumentNotFoundException;
 import com.example.demo.business.models.Document;
-import com.example.demo.data.entities.DocumentEntity;
-import com.example.demo.data.repositories.DocumentRepository;
+import com.example.demo.db.entities.DocumentEntity;
+import com.example.demo.db.repositories.DocumentRepository;
+import com.example.demo.db.repositories.S3Repository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.jms.core.JmsTemplate;
@@ -23,7 +20,11 @@ import java.util.Optional;
 @Service
 public class DocumentService {
 
+    private final Logger LOG = LoggerFactory.getLogger(DocumentService.class);
+
     private final DocumentRepository documentRepository;
+
+    private final S3Repository s3Repository;
 
     private final JmsTemplate jmsTemplate;
 
@@ -31,9 +32,11 @@ public class DocumentService {
 
     @Autowired
     public DocumentService(final DocumentRepository documentRepository,
+                           final S3Repository s3Repository,
                            final JmsTemplate jmsTemplate,
                            final Environment environment) {
         this.documentRepository = documentRepository;
+        this.s3Repository = s3Repository;
         this.jmsTemplate = jmsTemplate;
         this.environment = environment;
     }
@@ -85,36 +88,21 @@ public class DocumentService {
         return new Document(documentEntity);
     }
 
-    public void uploadFileToS3(final MultipartFile file) throws IOException {
-        final AmazonS3Client s3Client = (AmazonS3Client) AmazonS3ClientBuilder.standard()
-                .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
-                .withPathStyleAccessEnabled(true)
-                .build();
+    public Document uploadFileToS3WithMessage(final MultipartFile file,
+                                              final String fileName,
+                                              final String creator) throws IOException {
+        s3Repository.uploadFileToS3(file);
+        LOG.info("Uploading file content {} to s3", fileName);
 
-        final ObjectMetadata fileMetadata = new ObjectMetadata();
-        fileMetadata.setContentLength(file.getSize());
-        fileMetadata.setContentType(file.getContentType());
-
-        final PutObjectRequest request = new PutObjectRequest(
-                environment.getProperty("bucketname"),
-                file.getOriginalFilename(),
-                file.getInputStream(),
-                fileMetadata);
-
-        s3Client.putObject(request);
-    }
-
-    public Document pushMessage(final String fileName, final String creator) {
         final Document message = createDocument(fileName, creator);
         jmsTemplate.convertAndSend(environment.getProperty("destination"), message);
+        LOG.info("Pushing document {} {} to message queue ", message.getContent(), message);
+
         return message;
     }
 
     public S3Object getS3ObjectFromS3(final Long id) {
-        AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-                .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
-                .build();
-        return s3.getObject(environment.getProperty("bucketname"), getDocument(id).getContent());
+        return s3Repository.getS3ObjectFromS3(id, getDocument(id).getContent());
     }
 
     private Optional<DocumentEntity> findDocumentEntityById(final Long id) {

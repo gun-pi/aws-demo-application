@@ -1,4 +1,4 @@
-package com.example.demo.consumer;
+package com.example.demo.mq.consumers;
 
 import com.example.demo.business.models.Document;
 import org.apache.activemq.command.ActiveMQObjectMessage;

@@ -1,6 +1,6 @@
-package com.example.demo.data.repositories;
+package com.example.demo.db.repositories;
 
-import com.example.demo.data.entities.DocumentEntity;
+import com.example.demo.db.entities.DocumentEntity;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 

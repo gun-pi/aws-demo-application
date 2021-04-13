@@ -19,16 +19,17 @@ public class S3Repository {
 
     private final Environment environment;
 
+    private final AmazonS3 s3;
+
     @Autowired
     public S3Repository(final Environment environment) {
         this.environment = environment;
+        this.s3 = AmazonS3ClientBuilder.standard()
+                .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
+                .build();
     }
 
     public void uploadFileToS3(final MultipartFile file) throws IOException {
-        final AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-                .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
-                .build();
-
         final ObjectMetadata fileMetadata = new ObjectMetadata();
         fileMetadata.setContentLength(file.getSize());
         fileMetadata.setContentType(file.getContentType());
@@ -43,9 +44,6 @@ public class S3Repository {
     }
 
     public S3Object getS3ObjectFromS3(final Long id, final String fileName) {
-        AmazonS3 s3 = AmazonS3ClientBuilder.standard()
-                .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
-                .build();
         return s3.getObject(environment.getProperty("bucketname"), fileName);
     }
 }

@@ -17,6 +17,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 
 @RestController
+@RequestMapping("/file")
 public class FileController {
 
     private final Logger LOG = LoggerFactory.getLogger(FileController.class);
@@ -28,7 +29,7 @@ public class FileController {
         this.documentService = documentService;
     }
 
-    @PostMapping(value = "/file")
+    @PostMapping
     public String saveFile(@RequestParam("file") MultipartFile file,
                            @RequestParam("creator") String creator) throws IOException {
         LOG.info("Uploading file {}. Content type: {}. Size: {}", file.getOriginalFilename(),
@@ -37,7 +38,7 @@ public class FileController {
         return String.format("File with id %s is uploading", document.getId());
     }
 
-    @GetMapping(value = "/file/{id}/content")
+    @GetMapping(value = "/{id}/content")
     public ResponseEntity<InputStreamResource> getFile(@PathVariable Long id) {
         final S3Object object = documentService.getS3ObjectFromS3(id);
         return ResponseEntity.ok()
@@ -46,7 +47,7 @@ public class FileController {
                 .body(new InputStreamResource(new BufferedInputStream(object.getObjectContent())));
     }
 
-    @GetMapping(value = "/file/{id}/metadata")
+    @GetMapping(value = "/{id}/metadata")
     public FileMetadataDto getFileMetadata(@PathVariable Long id) {
         final Document document = documentService.getFileMetadata(id);
         return new FileMetadataDto(document);

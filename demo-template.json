@@ -51,6 +51,10 @@
 			"Description": "Select VPC.",
 			"Type": "AWS::EC2::VPC::Id"
 		},
+		"Subnets": {
+			"Description": "Select subnets.",
+			"Type": "List<AWS::EC2::Subnet::Id>"
+		},
 		"AvailabilityZone": {
 			"Description": "Select Availability Zone",
 			"Type": "AWS::EC2::AvailabilityZone::Name"
@@ -283,11 +287,9 @@
 			"DesiredCapacity":"1",
 			"HealthCheckGracePeriod":10,
 			"AvailabilityZones" : [{"Ref": "AvailabilityZone" }],
-			"LoadBalancerNames" : [ { "Ref" : "LoadBalancer" } ],
+			"TargetGroupARNs" : [{ "Ref" : "DefaultTargetGroup" }],
 			"LaunchTemplate": {
-			  "LaunchTemplateId": {
-				"Ref":"LaunchTemplate"
-			  },
+			  "LaunchTemplateId": {"Ref":"LaunchTemplate"},
 			  "Version":{ "Fn::GetAtt" : [ "LaunchTemplate", "LatestVersionNumber" ] }
 			}
 		  }
@@ -358,28 +360,48 @@
 		},
 		
 		"LoadBalancer" : {
-		  "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+		  "Type" : "AWS::ElasticLoadBalancingV2::LoadBalancer",
 		  "Properties" : {
-			"AvailabilityZones" : [{"Ref": "AvailabilityZone" }],
-			"CrossZone" : "false",
-			"Listeners" : [ {
-			  "LoadBalancerPort" : "80",
-			  "InstancePort" : "80",
-			  "Protocol" : "HTTP"
-			} ],
-			"HealthCheck" : {
-			  "Target" : "HTTP:80/document/1",
-			  "HealthyThreshold" : "3",
-			  "UnhealthyThreshold" : "5",
-			  "Interval" : "10",
-			  "Timeout" : "5"
-			},
+			"Type" : "application",
+			"Subnets" : {"Ref": "Subnets"},
 			"SecurityGroups":[
-				  {
-					"Ref" : "LoadBalancerSecurityGroup"
-				  }
-			]
+				  {"Ref" : "LoadBalancerSecurityGroup"}
+			],
+			"Scheme" : "internet-facing"
 		  }
+		},
+		
+		"LoadBalancerListener" : {
+			"Type" : "AWS::ElasticLoadBalancingV2::Listener",
+			"Properties" : {
+				"LoadBalancerArn" : {"Ref" : "LoadBalancer"},
+				"Port" : "80",
+				"Protocol" : "HTTP",
+				"DefaultActions": [{
+					"Type": "forward",
+					"TargetGroupArn" : {"Ref" : "DefaultTargetGroup"}
+                }]
+			}
+		},
+		
+		"DefaultTargetGroup" : {
+			"Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
+			"Properties" : {
+				"Name" : "DefaultTargetGroup",
+				"VpcId" : {"Ref": "VPC"},
+				"Port" : "80",
+				"Protocol" : "HTTP",
+				"HealthCheckIntervalSeconds" : "10",
+				"HealthCheckPath" : "/document/1",
+				"HealthCheckTimeoutSeconds" : "4",
+				"UnhealthyThresholdCount" : "2",
+				"TargetType" : "instance",
+				"HealthyThresholdCount" : "4",
+				"HealthCheckEnabled" : "true",
+				"HealthCheckPort" : "traffic-port",
+				"HealthCheckProtocol" : "HTTP",
+				"Matcher" : { "HttpCode" : "200" }
+			}
 		},
 		
 		"EC2IamInstanceProfile" : {

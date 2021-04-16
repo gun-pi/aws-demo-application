@@ -89,20 +89,19 @@ public class DocumentService {
     }
 
     public Document uploadFileToS3WithMessage(final MultipartFile file,
-                                              final String fileName,
                                               final String creator) throws IOException {
-        s3Repository.uploadFileToS3(file);
-        LOG.info("Uploading file content {} to s3", fileName);
+        final Document document = createDocument(file.getOriginalFilename(), creator);
+        s3Repository.uploadFileToS3(file, document.getId());
+        LOG.info("Uploading file content {} with id {} to s3", file.getOriginalFilename(), document.getId());
 
-        final Document message = createDocument(fileName, creator);
-        jmsTemplate.convertAndSend(environment.getProperty("destination"), message);
-        LOG.info("Pushing document {} {} to message queue ", message.getContent(), message);
+        jmsTemplate.convertAndSend(environment.getProperty("destination"), document);
+        LOG.info("Pushing document {} {} to message queue ", document.getContent(), document);
 
-        return message;
+        return document;
     }
 
     public S3Object getS3ObjectFromS3(final Long id) {
-        return s3Repository.getS3ObjectFromS3(id, getDocument(id).getContent());
+        return s3Repository.getS3ObjectFromS3(id);
     }
 
     private Optional<DocumentEntity> findDocumentEntityById(final Long id) {

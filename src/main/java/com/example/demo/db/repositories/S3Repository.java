@@ -29,21 +29,22 @@ public class S3Repository {
                 .build();
     }
 
-    public void uploadFileToS3(final MultipartFile file) throws IOException {
+    public void uploadFileToS3(final MultipartFile file, final  Long id) throws IOException {
         final ObjectMetadata fileMetadata = new ObjectMetadata();
         fileMetadata.setContentLength(file.getSize());
         fileMetadata.setContentType(file.getContentType());
 
-        final PutObjectRequest request = new PutObjectRequest(
-                environment.getProperty("bucketname"),
-                file.getOriginalFilename(),
-                new BufferedInputStream(file.getInputStream()),
-                fileMetadata);
-
-        s3.putObject(request);
+        try (final BufferedInputStream bufferedInputStream = new BufferedInputStream(file.getInputStream())) {
+            final PutObjectRequest request = new PutObjectRequest(
+                    environment.getProperty("bucketname"),
+                    id.toString(),
+                    bufferedInputStream,
+                    fileMetadata);
+            s3.putObject(request);
+        }
     }
 
-    public S3Object getS3ObjectFromS3(final Long id, final String fileName) {
-        return s3.getObject(environment.getProperty("bucketname"), fileName);
+    public S3Object getS3ObjectFromS3(final Long id) {
+        return s3.getObject(environment.getProperty("bucketname"), id.toString());
     }
 }

@@ -75,8 +75,9 @@ public class Document implements Serializable {
     @Override
     public String toString() {
         return "Document{" +
-                "creator='" + creator + '\'' +
-                ", publishedOn=" + publishedOn +
+                "id=" + id +
+                ", creator='" + creator + '\'' +
+                ", content='" + content + '\'' +
                 '}';
     }
 }

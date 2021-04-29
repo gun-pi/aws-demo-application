@@ -14,11 +14,17 @@ import javax.jms.JMSException;
 @PropertySource("classpath:application.properties")
 public class Consumer {
 
-    private final Logger LOG = LoggerFactory.getLogger(Consumer.class);
+    private static final Logger LOG = LoggerFactory.getLogger(Consumer.class);
 
     @JmsListener(destination = "${destination}")
-    public void receive(Object activeMQObjectMessage) throws JMSException {
-        Document message = (Document) ((ActiveMQObjectMessage) activeMQObjectMessage).getObject();
+    public void receive(Object activeMQObjectMessage) {
+        Document message;
+        try {
+            message = (Document) ((ActiveMQObjectMessage) activeMQObjectMessage).getObject();
+        } catch (JMSException e) {
+            LOG.error("JMSException occurred in Consumer: ", e);
+            throw new RuntimeException(e);
+        }
         LOG.info("File saved {} {} with id: {}", message.getContent(), message, message.getId());
     }
 }

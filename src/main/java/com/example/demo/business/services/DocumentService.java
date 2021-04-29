@@ -14,13 +14,12 @@ import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.Optional;
 
 @Service
 public class DocumentService {
 
-    private final Logger LOG = LoggerFactory.getLogger(DocumentService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DocumentService.class);
 
     private final DocumentRepository documentRepository;
 
@@ -89,7 +88,7 @@ public class DocumentService {
     }
 
     public Document uploadFileToS3WithMessage(final MultipartFile file,
-                                              final String creator) throws IOException {
+                                              final String creator) {
         final Document document = createDocument(file.getOriginalFilename(), creator);
         s3Repository.uploadFileToS3(file, document.getId());
         LOG.info("Uploading file content {} with id {} to s3", file.getOriginalFilename(), document.getId());

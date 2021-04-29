@@ -22,7 +22,7 @@ import java.util.concurrent.ForkJoinPool;
 @RequestMapping("/file")
 public class FileController {
 
-    private final Logger LOG = LoggerFactory.getLogger(FileController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FileController.class);
 
     private final DocumentService documentService;
 
@@ -42,6 +42,7 @@ public class FileController {
 
     @GetMapping(value = "/{id}/content")
     public DeferredResult<ResponseEntity<InputStreamResource>> getFile(@PathVariable Long id) {
+        LOG.info("Getting the file with id: {}", id);
         DeferredResult<ResponseEntity<InputStreamResource>> output = new DeferredResult<>();
         ForkJoinPool.commonPool().submit(() -> {
             try {
@@ -59,12 +60,14 @@ public class FileController {
 
     @GetMapping(value = "/{id}/metadata")
     public FileMetadataDto getFileMetadata(@PathVariable Long id) {
+        LOG.info("Getting the metadata of the file with id: {}", id);
         final Document document = documentService.getFileMetadata(id);
         return new FileMetadataDto(document);
     }
 
-    @ExceptionHandler(RuntimeException.class)
-    public String handleException(final RuntimeException e) {
+    @ExceptionHandler(Exception.class)
+    public String handleException(final Exception e) {
+        LOG.error("Exception occurred in FileController: ", e);
         return e.getMessage();
     }
 }

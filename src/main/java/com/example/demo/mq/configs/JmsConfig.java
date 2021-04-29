@@ -23,8 +23,7 @@ public class JmsConfig {
 
     @Bean
     public CachingConnectionFactory cachingConnectionFactory() {
-        ActiveMQConnectionFactory factory = new ActiveMQConnectionFactory(brokerUser, brokerPassword, brokerUrl);
-        return new CachingConnectionFactory(factory);
+        return new CachingConnectionFactory(activeMQConnectionFactory());
     }
 
     @Bean
@@ -34,7 +33,10 @@ public class JmsConfig {
 
     @Bean
     public ActiveMQConnectionFactory activeMQConnectionFactory() {
-        final ActiveMQConnectionFactory activeMQConnectionFactory = new ActiveMQConnectionFactory(brokerUser, brokerPassword, brokerUrl);
+        final ActiveMQConnectionFactory activeMQConnectionFactory = new ActiveMQConnectionFactory(
+                brokerUser,
+                brokerPassword,
+                brokerUrl);
         activeMQConnectionFactory.setTrustAllPackages(true);
         return activeMQConnectionFactory;
     }

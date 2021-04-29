@@ -16,11 +16,11 @@
 			"ParameterGroups" : [
 				{
 					"Label" : { "default": "Database Configuration" },
-					"Parameters" : [ "DatabaseName", "DatabaseUserName", "DatabasePassword",  "PubliclyVisible" ]
+					"Parameters" : [ "DatabaseName", "DatabaseUserName", "DatabasePassword" ]
 				},
 				{
 					"Label" : { "default" : "Network Configuration" },
-					"Parameters" : [ "VPC", "AvailabilityZone" ]
+					"Parameters" : [ "AvailabilityZone1", "AvailabilityZone2" ]
 				},
 				{
 					"Label" : { "default" : "EC2 Configuration" },
@@ -32,11 +32,11 @@
 				}
 			],
 			"ParameterLabels" : {
-				"AvailabilityZone" : { "default" : "Availability Zone" },
+				"AvailabilityZone1" : { "default" : "Availability Zone 1" },
+				"AvailabilityZone2" : { "default" : "Availability Zone 2" },
 				"DatabasePassword" : { "default" : "Database Password" },
 				"DatabaseName" : { "default" : "Database Name" },
 				"DatabaseUserName" : { "default" : "Database User Name" },
-				"PubliclyVisible" : { "default" : "Publicly Visible" },
 				"KeyName" : { "default" : "Key Name" },
 				"AmazonMqUsername" : { "default" : "Amazon Mq Username" },
 				"AmazonMqPassword" : { "default" : "Amazon Mq Password" },
@@ -47,16 +47,12 @@
 	},
 	
 	"Parameters": {
-		"VPC": {
-			"Description": "Select VPC.",
-			"Type": "AWS::EC2::VPC::Id"
+		"AvailabilityZone1": {
+			"Description": "Select Availability Zone 1",
+			"Type": "AWS::EC2::AvailabilityZone::Name"
 		},
-		"Subnets": {
-			"Description": "Select subnets.",
-			"Type": "List<AWS::EC2::Subnet::Id>"
-		},
-		"AvailabilityZone": {
-			"Description": "Select Availability Zone",
+		"AvailabilityZone2": {
+			"Description": "Select Availability Zone 2",
 			"Type": "AWS::EC2::AvailabilityZone::Name"
 		},
 		"DatabasePassword": {
@@ -77,16 +73,6 @@
 			"Type": "String",
 			"Description": "The name of master user for the client DB Instance.",
 			"Default": "postgres"
-		},
-		"PubliclyVisible": {
-			"ConstraintDescription": "true or false",
-			"Type": "String",
-			"Description": "Should database be publicly accessible",
-			"AllowedValues": [
-				"true",
-				"false"
-			],
-			"Default": "false"
 		},
 		"KeyName" : {
 		  "Description" : "EC2 Instance SSH Key",
@@ -130,17 +116,21 @@
 			"Properties": {
 				"GroupDescription": "Enable access to database",
 				"SecurityGroupIngress" : [{
-					 "IpProtocol" : "tcp",
-					 "FromPort" : 5432,
-					 "ToPort" : 5432,
-					 "CidrIp" : "0.0.0.0/0"
+					 "CidrIp" : {"Fn::GetAtt": ["CustomVPC","CidrBlock"]},
+					 "IpProtocol": "-1"
 				  }],
-				"VpcId": {
-					"Ref": "VPC"
-				}
+				"VpcId": {"Ref": "CustomVPC"}
 			},
 			"Type": "AWS::EC2::SecurityGroup"
 		},
+		
+		"DBSubnetGroup": {
+            "Type": "AWS::RDS::DBSubnetGroup",
+            "Properties": {
+                "DBSubnetGroupDescription": "description",
+                "SubnetIds": [{"Ref": "CustomPublicSubnet"}, {"Ref": "CustomPublicSubnet2"}]
+            }
+        },
 		
 		"EC2SecurityGroup": {
 			"Properties": {
@@ -150,9 +140,30 @@
 					 "FromPort" : 22,
 					 "ToPort" : 22,
 					 "CidrIp" : "0.0.0.0/0"
+				  },{
+					 "IpProtocol" : "tcp",
+					 "FromPort" : 80,
+					 "ToPort" : 80,
+					 "CidrIp" : {"Fn::GetAtt": ["CustomVPC","CidrBlock"]}
 				  }],
 				"VpcId": {
-					"Ref": "VPC"
+					"Ref": "CustomVPC"
+				}
+			},
+			"Type": "AWS::EC2::SecurityGroup"
+		},
+		
+		"MqSecurityGroup": {
+			"Properties": {
+				"GroupDescription": "Enable access to Mq",
+				"SecurityGroupIngress" : [{
+					 "IpProtocol" : "tcp",
+					 "FromPort" : 0,
+					 "ToPort" : 65535,
+					 "CidrIp" : {"Fn::GetAtt": ["CustomVPC","CidrBlock"]}
+				  }],
+				"VpcId": {
+					"Ref": "CustomVPC"
 				}
 			},
 			"Type": "AWS::EC2::SecurityGroup"
@@ -168,7 +179,6 @@
                 "SourceSecurityGroupId": {"Fn::GetAtt": ["LoadBalancerSecurityGroup","GroupId"]}
             }
         },
-    
 		
 		"LoadBalancerSecurityGroup": {
 			"Properties": {
@@ -180,7 +190,7 @@
 					 "CidrIp" : "0.0.0.0/0"
 				  }],
 				"VpcId": {
-					"Ref": "VPC"
+					"Ref": "CustomVPC"
 				}
 			},
 			"Type": "AWS::EC2::SecurityGroup"
@@ -202,7 +212,7 @@
 			"DeletionPolicy": "Delete",
 			"Properties": {
 				"AvailabilityZone": {
-					"Ref": "AvailabilityZone"
+					"Ref": "AvailabilityZone1"
 				},
 				"MasterUserPassword": {
 					"Ref": "DatabasePassword"
@@ -219,11 +229,10 @@
 					"Ref": "DatabaseName"
 				},
 				"MultiAZ": false,
+				"DBSubnetGroupName" : {"Ref" : "DBSubnetGroup"},
 				"Engine": "postgres",
 				"AllocatedStorage": 5,
-				"PubliclyAccessible": {
-					"Ref": "PubliclyVisible"
-				}
+				"PubliclyAccessible": "false"
 			}
 		},
 		
@@ -286,12 +295,13 @@
 			"MaxSize":"2",
 			"DesiredCapacity":"1",
 			"HealthCheckGracePeriod":10,
-			"AvailabilityZones" : [{"Ref": "AvailabilityZone" }],
+			"AvailabilityZones" : [{"Ref": "AvailabilityZone1" }],
 			"TargetGroupARNs" : [{ "Ref" : "DefaultTargetGroup" }],
 			"LaunchTemplate": {
 			  "LaunchTemplateId": {"Ref":"LaunchTemplate"},
 			  "Version":{ "Fn::GetAtt" : [ "LaunchTemplate", "LatestVersionNumber" ] }
-			}
+			},
+			"VPCZoneIdentifier":[{"Ref":"CustomPublicSubnet"}]
 		  }
 		},
 		
@@ -363,7 +373,7 @@
 		  "Type" : "AWS::ElasticLoadBalancingV2::LoadBalancer",
 		  "Properties" : {
 			"Type" : "application",
-			"Subnets" : {"Ref": "Subnets"},
+			"Subnets" : [{"Ref": "CustomPublicSubnet"}, {"Ref": "CustomPublicSubnet2"}],
 			"SecurityGroups":[
 				  {"Ref" : "LoadBalancerSecurityGroup"}
 			],
@@ -388,7 +398,7 @@
 			"Type" : "AWS::ElasticLoadBalancingV2::TargetGroup",
 			"Properties" : {
 				"Name" : "DefaultTargetGroup",
-				"VpcId" : {"Ref": "VPC"},
+				"VpcId" : {"Ref": "CustomVPC"},
 				"Port" : "80",
 				"Protocol" : "HTTP",
 				"HealthCheckIntervalSeconds" : "10",
@@ -487,6 +497,7 @@
 			"EngineVersion": "5.15.0",
 			"HostInstanceType": "mq.t2.micro",
 			"PubliclyAccessible": "false",
+			"SecurityGroups":[{"Ref" : "MqSecurityGroup"}],
 			"Logs": {
 				"General": true,
 				"Audit": true
@@ -497,9 +508,93 @@
 				"Password" : { "Ref" : "AmazonMqPassword" },
 				"Username" : { "Ref" : "AmazonMqUsername" }
 			  }
-			]
+			],
+			"SubnetIds" : [{"Ref":"CustomPublicSubnet"}]
 		  }
-		}
-	  }
-	
+		},
+		
+		"CustomVPC" : {
+		   "Type" : "AWS::EC2::VPC",
+		   "Properties" : {
+			  "CidrBlock" : "10.0.0.0/16",
+			  "EnableDnsSupport" : "true",
+			  "EnableDnsHostnames" : "true",
+			  "InstanceTenancy" : "default"
+		   }
+		},
+	  
+	    "CustomInternetGateway" : {
+		    "Type" : "AWS::EC2::InternetGateway"
+	    },
+	   
+	   "AttachCustomInternetGateway" : {
+		   "Type" : "AWS::EC2::VPCGatewayAttachment",
+		   "Properties" : {
+			  "VpcId" : { "Ref" : "CustomVPC" },
+			  "InternetGatewayId" : { "Ref" : "CustomInternetGateway" }
+			}
+		},
+		
+		"CustomPublicSubnet" : {
+		   "Type" : "AWS::EC2::Subnet",
+		   "Properties" : {
+			  "VpcId" : { "Ref" : "CustomVPC" },
+			  "CidrBlock" : "10.0.11.0/24",
+			  "AvailabilityZone" : { "Ref" : "AvailabilityZone1" },
+			  "MapPublicIpOnLaunch" : true
+		   }
+		},
+		
+		"CustomPublicSubnet2" : {
+		   "Type" : "AWS::EC2::Subnet",
+		   "Properties" : {
+			  "VpcId" : { "Ref" : "CustomVPC" },
+			  "CidrBlock" : "10.0.12.0/24",
+			  "AvailabilityZone" : { "Ref" : "AvailabilityZone2" },
+			  "MapPublicIpOnLaunch" : true
+		   }
+		},
+		
+		"PublicRoute" : {
+		   "Type" : "AWS::EC2::Route",
+		   "DependsOn" : "AttachCustomInternetGateway",
+		   "Properties" : {
+			  "RouteTableId" : { "Ref" : "PublicRouteTable" },
+			  "DestinationCidrBlock" : "0.0.0.0/0",
+			  "GatewayId" : { "Ref" : "CustomInternetGateway" }
+		   }
+		},
+		
+		"PublicRouteTable" : {
+		   "Type" : "AWS::EC2::RouteTable",
+		   "Properties" : {
+			  "VpcId" : { "Ref" : "CustomVPC" }
+		   }
+		},
+		
+		"PublicSubnetRouteTableAssociation" : {
+		   "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+		   "Properties" : {
+			  "SubnetId" : { "Ref" : "CustomPublicSubnet" },
+			  "RouteTableId" : { "Ref" : "PublicRouteTable" }
+		   }
+		},
+		
+		"PublicSubnetRouteTableAssociation2" : {
+		   "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+		   "Properties" : {
+			  "SubnetId" : { "Ref" : "CustomPublicSubnet2" },
+			  "RouteTableId" : { "Ref" : "PublicRouteTable" }
+		   }
+		},
+		
+		"S3Endpoint": {
+		  "Type": "AWS::EC2::VPCEndpoint",
+		  "Properties": {
+			 "RouteTableIds": [{"Ref": "PublicRouteTable"}],
+			 "ServiceName": {"Fn::Sub": "com.amazonaws.${AWS::Region}.s3"},
+			 "VpcId": {"Ref": "CustomVPC"}
+		  }
+	   }
+	}
 }
